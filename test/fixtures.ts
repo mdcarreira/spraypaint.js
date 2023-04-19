@@ -83,6 +83,14 @@ export class Author extends Person {
 }
 
 @Model()
+export class SimpleAuthor extends ApplicationRecord {
+  static endpoint: "/v1/simple-authors"
+  static jsonapiType: "simple-authors"
+
+  @HasMany() books!: Book[]
+}
+
+@Model()
 export class Book extends ApplicationRecord {
   static jsonapiType = "books"
 

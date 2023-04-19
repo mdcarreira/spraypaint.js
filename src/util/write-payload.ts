@@ -83,8 +83,12 @@ export class WritePayload<T extends SpraypaintBase> {
     this.model.resetRelationTracking()
   }
 
-  relationships(): object {
+  relationships(config: { traverseRelationships: boolean }): object {
     const _relationships: any = {}
+
+    if (!config.traverseRelationships) {
+      return _relationships
+    }
 
     Object.keys(this.model.klass.attributeList).forEach((key: string) => {
       let attribute: Attribute = this.model.klass.attributeList[key]
@@ -120,7 +124,24 @@ export class WritePayload<T extends SpraypaintBase> {
     return _relationships
   }
 
-  asJSON(): JsonapiRequestDoc {
+  /**
+   * The config param allows to disable traversing relationships.
+   *
+   * We need this because we changed spraypaint to serialize all relationships by default. The original implementation
+   * required having to explicitly enumerate the relationships we wanted to serialize.
+   *
+   * When transforming an object to JSON:API format, we only care about it's immediate relationships. Adding this
+   * config parameter allow to stop recursion when needed, thus ignoring the deeply nested relationships.
+   *
+   * Without this, the objects relationships tree would be fully traversed, which is bad for performance. Also, it
+   * would even lead to a stack overflow error in case the model had circular relationships.
+   *
+   * @param config configuration for creating the json:api object
+   * @returns model data in json:api format
+   */
+  asJSON(
+    config: { traverseRelationships: boolean } = { traverseRelationships: true }
+  ): JsonapiRequestDoc {
     const data: JsonapiResource = {
       type: this.jsonapiType
     }
@@ -140,7 +161,7 @@ export class WritePayload<T extends SpraypaintBase> {
       }
     }
 
-    const relationshipData = this.relationships()
+    const relationshipData = this.relationships(config)
     if (Object.keys(relationshipData).length > 0) {
       data.relationships = relationshipData
     }
@@ -177,7 +198,8 @@ export class WritePayload<T extends SpraypaintBase> {
     }
 
     const wp = new WritePayload(model, nested, idOnly)
-    const relatedJSON = wp.asJSON().data
+    // When processing related models we do not want to go deeper in the hierarchy, so we set traverseRelationships: false.
+    const relatedJSON = wp.asJSON({ traverseRelationships: false }).data
 
     if (!this._isNewAndMarkedForDestruction(model)) {
       this._pushInclude(relatedJSON)

@@ -5,16 +5,19 @@ import {
   PersonWithDasherizedKeys,
   Author,
   Genre,
-  Book
+  Book,
+  SimpleAuthor
 } from "../fixtures"
 
-describe.skip("WritePayload", () => {
+describe("WritePayload", () => {
+  const ignoreRelationshiptsConfig = { traverseRelationships: false }
+
   it("Does not serialize number attributes as empty string", () => {
     let person = new Person({ first_name: "Joe", age: 23 })
     ;(person.age as any) = ""
     person.lastName = ""
     let payload = new WritePayload(person)
-    expect(payload.asJSON()).to.deep.equal({
+    expect(payload.asJSON(ignoreRelationshiptsConfig)).to.deep.equal({
       data: {
         type: "people",
         attributes: {
@@ -29,7 +32,7 @@ describe.skip("WritePayload", () => {
   it("underscores attributes", () => {
     let person = new Person({ first_name: "Joe" })
     let payload = new WritePayload(person)
-    expect(payload.asJSON()).to.deep.equal({
+    expect(payload.asJSON(ignoreRelationshiptsConfig)).to.deep.equal({
       data: {
         type: "people",
         attributes: {
@@ -42,7 +45,7 @@ describe.skip("WritePayload", () => {
   it("dasherizes attributes", () => {
     let person = new PersonWithDasherizedKeys({ first_name: "Joe" })
     let payload = new WritePayload(person)
-    expect(payload.asJSON()).to.deep.equal({
+    expect(payload.asJSON(ignoreRelationshiptsConfig)).to.deep.equal({
       data: {
         type: "people",
         attributes: {
@@ -57,7 +60,7 @@ describe.skip("WritePayload", () => {
       let person = new Person({ first_name: "Joe", age: 23 })
       person.setMeta({ mock: "metadata" })
       let payload = new WritePayload(person)
-      expect(payload.asJSON()).to.deep.equal({
+      expect(payload.asJSON(ignoreRelationshiptsConfig)).to.deep.equal({
         data: {
           type: "people",
           attributes: {
@@ -75,7 +78,7 @@ describe.skip("WritePayload", () => {
       let person = new Person({ first_name: "Joe", age: 23 })
       person.setMeta({ mock: "metadata" }, false)
       let payload = new WritePayload(person)
-      expect(payload.asJSON()).to.deep.equal({
+      expect(payload.asJSON(ignoreRelationshiptsConfig)).to.deep.equal({
         data: {
           type: "people",
           attributes: {
@@ -84,6 +87,36 @@ describe.skip("WritePayload", () => {
           }
         }
       })
+    })
+  })
+
+  describe("circular references", () => {
+    const book = new Book({ title: "Vinhas da ira", id: "1" })
+    book.isPersisted = true
+    const expectedPayload = {
+      data: {
+        relationships: {
+          books: {
+            data: [
+              {
+                id: "1",
+                type: "books"
+              }
+            ]
+          }
+        },
+        type: "simple_authors"
+      }
+    }
+
+    it("can be handled correctly", () => {
+      let author = new SimpleAuthor()
+      author.books = [book]
+      book.author = author
+      // let book = new Book({ author });
+
+      let payload = new WritePayload(author)
+      expect(payload.asJSON()).to.deep.equal(expectedPayload)
     })
   })
 
